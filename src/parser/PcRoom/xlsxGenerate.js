@@ -1,5 +1,6 @@
 import fs from "fs-extra";
 import path from "path";
+import pick from "lodash";
 import BufferGenerator from "../../classes/BufferGenerator";
 import Struct from "../../classes/Struct";
 import serverReaderSheet from "./serverFileReaderSheet";
@@ -27,7 +28,7 @@ const getHeaderValues = ({ block, objects = [] }) => ({
 });
 
 function converServerObjectToClientDataSheet(object) {
-  const clientSheet = { ...object, unk3: { raw: 0, prc: 0, def: 0 } };
+  const clientSheet = Object.assign({}, pick(object, ["_rowindex", "_nindex"]));
   const def = "FFFFFFFF";
 
   function convertItemSelectCodes() {
@@ -43,37 +44,27 @@ function converServerObjectToClientDataSheet(object) {
       const fieldName = `itmSelect${group}_${n}`;
       const fieldValue = object[fieldName];
       const isValidServerCode =
-        typeof fieldValue.prc === "string" && fieldValue.prc.length === 7;
+        typeof fieldValue === "string" && fieldValue.length === 7;
 
       const clientCode = isValidServerCode
-        ? getClientCodeByServerCode(fieldValue.prc)
+        ? getClientCodeByServerCode(fieldValue)
         : null;
 
       const clientTypes = isValidServerCode
-        ? getFinitesByServerCode(fieldValue.prc)
+        ? getFinitesByServerCode(fieldValue)
         : null;
 
       if (clientTypes !== null && clientTypes.length > 1) {
-        throw new Error(`Too many finites by code ${fieldValue.prc}`);
+        throw new Error(`Too many finites by code ${fieldValue}`);
       }
 
-      clientSheet[`type${group}_${n}`] = {
-        raw: clientTypes !== null ? clientTypes[0] : -1,
-        prc: clientTypes !== null ? clientTypes[0] : -1,
-        def: 0
-      };
-
-      clientSheet[`itm${group}_${n}`] = {
-        raw: fieldValue.prc,
-        prc: !clientCode ? def : clientCode,
-        def
-      };
+      clientSheet[`type${group}_${n}`] = clientTypes && clientTypes[0];
+      clientSheet[`itm${group}_${n}`] = clientCode;
     });
 
-    [1, 2, 3, 4, 5].forEach(group => {
-      const num = parseInt(object[`selNum${group}`].prc, 10);
-      clientSheet[`num${group}`] = { raw: num, prc: !num ? 0 : num, def: 0 };
-    });
+    [1, 2, 3, 4, 5].forEach(
+      group => (clientSheet[`num${group}`] = object[`selNum${group}`])
+    );
   }
 
   function convertItemFixSelectCodes() {
@@ -85,33 +76,22 @@ function converServerObjectToClientDataSheet(object) {
       const numFieldValue = object[numFieldName];
 
       const isValidServerCode =
-        typeof codeFieldValue.prc === "string" &&
-        codeFieldValue.prc.length === 7;
+        typeof codeFieldValue === "string" && codeFieldValue.length === 7;
 
       const clientCode = isValidServerCode
-        ? getClientCodeByServerCode(codeFieldValue.prc)
+        ? getClientCodeByServerCode(codeFieldValue)
         : null;
 
       const clientTypes = isValidServerCode
-        ? getFinitesByServerCode(codeFieldValue.prc)
+        ? getFinitesByServerCode(codeFieldValue)
         : null;
 
       if (clientTypes !== null && clientTypes.length > 1) {
-        throw new Error(`Too many finites by code ${codeFieldValue.prc}`);
+        throw new Error(`Too many finites by code ${codeFieldValue}`);
       }
 
-      clientSheet[`fixType_${n}`] = {
-        raw: clientTypes !== null ? clientTypes[0] : -1,
-        prc: clientTypes !== null ? clientTypes[0] : -1,
-        def: 0
-      };
-
-      clientSheet[`fixItm_${n}`] = {
-        raw: codeFieldValue.prc,
-        prc: !clientCode ? def : clientCode,
-        def
-      };
-
+      clientSheet[`fixType_${n}`] = clientTypes && clientTypes[0];
+      clientSheet[`fixItm_${n}`] = clientCode;
       clientSheet[`fixNum_${n}`] = numFieldValue;
     });
   }
@@ -145,7 +125,7 @@ async function generateClient({
     const processedObject = converServerObjectToClientDataSheet(object);
     blockFields.forEach((field, cindex) => {
       try {
-        buffer.addByField(field, processedObject[field.getName()].prc);
+        buffer.addByField(field, field.getValueFromObject(processedObject));
       } catch (err) {
         errorPrc("PcRoom", "ClientConv", "PrcErrorStack", field.getName());
         throw err;
@@ -201,7 +181,7 @@ export default async function generator({
     const buffer = new BufferGenerator();
     blockFields.forEach((field, cindex) => {
       try {
-        buffer.addByField(field, object[field.getName()].prc);
+        buffer.addByField(field, field.getValueFromObject(object));
       } catch (err) {
         errorPrc("PcRoom", "ServerConv", "PrcErrorStack", field.getName());
         throw err;

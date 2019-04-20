@@ -3,7 +3,7 @@ import invariant from "invariant";
 import { isInteger } from "lodash";
 
 class Field {
-  constructor({ type, name, len, as, group, schemaProps = {} } = {}) {
+  constructor({ type, name, len, as, group, def, schemaProps = {} } = {}) {
     invariant(
       [Number, Boolean, String].includes(type),
       `Field type must be one of Number|Boolean|String`
@@ -33,6 +33,25 @@ class Field {
     this.group = group;
     this.schemaProps = schemaProps;
     this.dynamic = typeof this.len === "function";
+    this.def = def;
+  }
+
+  getDef() {
+    return this.def;
+  }
+
+  getValueFromObject(object) {
+    const val = object[this.getName()];
+
+    if (val || (this.type === Number && val === 0)) {
+      return val;
+    }
+
+    if (typeof this.getDef() === "function") {
+      return this.getDef()(value, object, this);
+    }
+
+    return this.getDef();
   }
 
   /**

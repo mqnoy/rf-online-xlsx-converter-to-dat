@@ -41,7 +41,7 @@ export default function generator({
   objects.forEach((object, rindex) => {
     const buffer = new BufferGenerator();
     blockFields.forEach((field, cindex) => {
-      buffer.addByField(field, object[field.getName()].prc);
+      buffer.addByField(field, field.getValueFromObject(object));
     });
     buffers.push(buffer.getBuffer());
   });
